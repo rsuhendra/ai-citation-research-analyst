@@ -5,16 +5,58 @@ CITATION_EDGES: CITING_PAPER_ID, CITED_PAPER_ID; both endpoints are in PAPERS.
 CITATION_RELATIONSHIPS: readable citation view with citing/cited titles, years, topics, and citation counts.
 Use FOCAL_PAPERS for rankings. Use CITATION_RELATIONSHIPS for citation questions.
 """
-ROUTER_PROMPT = """Classify into exactly one route: direct, sql, rag, reject.
-direct: general AI/ML, citations, research, RAG, embeddings, or app explanations without database data.
-sql: filtering, counting, grouping, ranking, years, topics, citation counts, citation velocity, or citation relationships.
-rag: semantic understanding of titles/abstracts, methods, findings, similarity, summaries, or papers about a concept.
-reject: unrelated to AI/ML research, papers, citations, or this app.
-Return one lowercase word only.
-Context:
+
+# ROUTER_PROMPT = """Classify into exactly one route: direct, sql, rag, reject.
+# direct: general AI/ML, citations, research, RAG, embeddings, or app explanations without database data.
+# sql: filtering, counting, grouping, ranking, years, topics, citation counts, citation velocity, or citation relationships.
+# rag: semantic understanding of titles/abstracts, methods, findings, similarity, summaries, or papers about a concept.
+# reject: unrelated to AI/ML research, papers, citations, or this app.
+# Return one lowercase word only.
+# Context:
+# {history}
+# Question:
+# {question}"""
+
+ROUTER_PROMPT = """
+You route requests for a research assistant over a curated ML/AI paper corpus.
+
+Choose exactly one route:
+
+direct:
+A general question about AI, machine learning, research methods, citations,
+RAG, embeddings, or how the application works. It does not require paper data.
+
+sql:
+A structured database question requiring exact filtering, counting, grouping,
+ranking, publication years, citation counts, citation velocity, or explicit
+citation relationships.
+
+rag:
+A semantic question requiring understanding paper titles or abstracts.
+Use rag for requests to summarize, compare, explain, identify methods,
+describe findings, discuss limitations, or find papers about a concept.
+
+Examples of rag:
+- Summarize the papers about multimodal representation learning.
+- Which papers discuss efficient transformer inference?
+- Compare the approaches used in diffusion-model papers.
+- What methods do the retrieved papers use?
+
+reject:
+The request is unrelated to AI/ML research, research papers, citations,
+or this application.
+
+Return exactly one lowercase word:
+direct, sql, rag, or reject.
+
+Conversation context:
 {history}
-Question:
-{question}"""
+
+Current question:
+{question}
+"""
+
+
 # SQL_GENERATION_PROMPT = """Write one safe Snowflake SELECT query. Return SQL only.
 # {schema}
 # Rules: use only PAPERS, FOCAL_PAPERS, CITATION_EDGES, CITATION_RELATIONSHIPS; one SELECT/WITH; no mutations; use ILIKE for fuzzy title/topic; limit <=100; no semicolon.
