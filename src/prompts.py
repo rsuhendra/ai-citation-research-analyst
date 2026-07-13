@@ -72,12 +72,19 @@ Write exactly one valid Snowflake SQL query that answers the user's question.
 
 Rules:
 - Return only SQL.
+- The first word must be SELECT.
+- Do NOT use WITH clauses or CTEs.
+- Write a single SELECT statement.
+- Use only these tables/views:
+  - FOCAL_PAPERS
+  - PAPERS
+  - CITATION_RELATIONSHIPS
+  - CITATION_EDGES
+- Use ORDER BY, GROUP BY, HAVING, subqueries, and JOINs if needed.
 - Do not include markdown fences.
 - Do not include explanations.
 - Do not write phrases such as "Here is the query."
 - The first word must be SELECT or WITH.
-- Use only PAPERS, FOCAL_PAPERS, CITATION_EDGES,
-  or CITATION_RELATIONSHIPS.
 - Prefer FOCAL_PAPERS for rankings and paper metadata.
 - Prefer CITATION_RELATIONSHIPS for citation questions.
 - Generate exactly one SELECT or WITH query.
