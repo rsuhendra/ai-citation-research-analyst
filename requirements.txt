@@ -1,0 +1,7 @@
+streamlit>=1.45
+pandas>=2.0
+requests>=2.31
+python-dotenv>=1.0
+snowflake-snowpark-python>=1.30
+snowflake>=1.7
+sqlglot>=26.0
