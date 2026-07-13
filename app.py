@@ -15,7 +15,7 @@ from src.usage import (
 
 
 st.set_page_config(
-	page_title="AI Citation Research Analyst",
+	page_title="Top AI Paper Analyst",
 	page_icon="🔬",
 	layout="wide",
 )
@@ -79,11 +79,26 @@ EXAMPLES = [
 ]
 
 
-st.title("🔬 AI Citation Research Analyst")
+# st.title("🔬 AI Citation Research Analyst")
 
-st.caption(
-	"Ask structured citation questions or semantic questions "
-	"about highly cited ML/AI paper abstracts."
+# st.caption(
+# 	"Ask structured citation questions or semantic questions "
+# 	"about highly cited ML/AI paper abstracts."
+# )
+
+st.title("AI Analyst for top AI/ML papers")
+
+st.markdown(
+    """
+A natural-language research interface over a (small) curated corpus of highly cited
+AI and machine learning papers published from 2021 through 2025.
+
+The application automatically routes each question to the appropriate pipeline,
+using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation,
+**Snowflake Cortex Search** for semantic retrieval over paper abstracts, and
+**Snowflake SQL** for structured analysis of citation relationships and
+publication metadata.
+"""
 )
 
 
@@ -118,25 +133,25 @@ with st.sidebar:
 		"This is a shared limit across all users of the app."
 	)
 
-	st.divider()
+	# st.divider()
 
-	st.header("About this corpus")
+	# st.header("About this corpus")
 
-	st.markdown(
-		"""
-	This application contains a curated corpus of the **top-cited AI and machine learning papers published from 2021 through 2025**, together with citation relationships between papers in the dataset.
+	# st.markdown(
+	# 	"""
+	# This application contains a curated corpus of the **top-cited AI and machine learning papers published from 2021 through 2025**, together with citation relationships between papers in the dataset.
 
-	You can use natural-language questions to:
+	# You can use natural-language questions to:
 
-	- Explore citation rankings and publication trends.
-	- Find influential papers on a research topic.
-	- Search paper abstracts semantically.
-	- Summarize and compare methods across papers.
-	- Examine citation relationships within the corpus.
+	# - Explore citation rankings and publication trends.
+	# - Find influential papers on a research topic.
+	# - Search paper abstracts semantically.
+	# - Summarize and compare methods across papers.
+	# - Examine citation relationships within the corpus.
 
-	The application automatically routes natural-language queries to the appropriate pipeline, using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation, **Snowflake Cortex Search** for semantic retrieval over paper abstracts, and **Snowflake SQL** for structured analysis of citation relationships and publication metadata.
-	"""
-	)
+	# The application automatically routes natural-language queries to the appropriate pipeline, using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation, **Snowflake Cortex Search** for semantic retrieval over paper abstracts, and **Snowflake SQL** for structured analysis of citation relationships and publication metadata.
+	# """
+	# )
 
 	st.divider()
 
