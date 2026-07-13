@@ -120,15 +120,22 @@ with st.sidebar:
 
 	st.divider()
 
-	st.header("Available routes")
+	st.header("About this corpus")
 
 	st.markdown(
 		"""
-- **Direct:** general AI/ML explanations
-- **SQL:** counts, rankings, years, and citations
-- **RAG:** methods and concepts found in abstracts
-- **Reject:** unrelated requests
-"""
+	This application contains a curated corpus of the **top-cited AI and machine learning papers published from 2021 through 2025**, together with citation relationships between papers in the dataset.
+
+	You can use natural-language questions to:
+
+	- Explore citation rankings and publication trends.
+	- Find influential papers on a research topic.
+	- Search paper abstracts semantically.
+	- Summarize and compare methods across papers.
+	- Examine citation relationships within the corpus.
+
+	The application automatically routes natural-language queries to the appropriate pipeline, using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation, **Snowflake Cortex Search** for semantic retrieval over paper abstracts, and **Snowflake SQL** for structured analysis of citation relationships and publication metadata.
+	"""
 	)
 
 	st.divider()
