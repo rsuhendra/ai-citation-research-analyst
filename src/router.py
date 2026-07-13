@@ -11,12 +11,8 @@ import re
 VALID={"direct","sql","rag","reject"}
 
 def extract_sql(raw_response: str) -> str:
-    """
-    Extract a SELECT or WITH query from an LLM response.
-    """
     text = raw_response.strip()
 
-    # First try to extract a fenced SQL block.
     fenced_match = re.search(
         r"```(?:sql)?\s*(.*?)```",
         text,
@@ -24,22 +20,58 @@ def extract_sql(raw_response: str) -> str:
     )
 
     if fenced_match:
-        return fenced_match.group(1).strip()
+        text = fenced_match.group(1).strip()
 
-    # Otherwise find the first SELECT or WITH keyword.
+    # Look for SELECT/WITH only at the beginning of a line.
     sql_start = re.search(
-        r"\b(?:SELECT|WITH)\b",
+        r"(?im)^\s*(SELECT|WITH)\b",
         text,
-        flags=re.IGNORECASE,
     )
 
     if not sql_start:
         raise ValueError(
-            "The model did not return a SELECT or WITH query.\n\n"
-            f"Raw response:\n{raw_response}"
+            "The model did not return valid SQL.\n\n"
+            f"Raw response:\n{text}"
         )
 
-    return text[sql_start.start():].strip()
+    sql = text[sql_start.start():].strip()
+
+    # Remove markdown fences and trailing semicolon.
+    sql = re.sub(r"\s*```.*$", "", sql, flags=re.DOTALL)
+    sql = sql.rstrip(";").strip()
+
+    return sql
+
+# def extract_sql(raw_response: str) -> str:
+#     """
+#     Extract a SELECT or WITH query from an LLM response.
+#     """
+#     text = raw_response.strip()
+
+#     # First try to extract a fenced SQL block.
+#     fenced_match = re.search(
+#         r"```(?:sql)?\s*(.*?)```",
+#         text,
+#         flags=re.IGNORECASE | re.DOTALL,
+#     )
+
+#     if fenced_match:
+#         return fenced_match.group(1).strip()
+
+#     # Otherwise find the first SELECT or WITH keyword.
+#     sql_start = re.search(
+#         r"\b(?:SELECT|WITH)\b",
+#         text,
+#         flags=re.IGNORECASE,
+#     )
+
+#     if not sql_start:
+#         raise ValueError(
+#             "The model did not return a SELECT or WITH query.\n\n"
+#             f"Raw response:\n{raw_response}"
+#         )
+
+#     return text[sql_start.start():].strip()
 
 def choose_route(question:str)->str:
 	c=AppConfig.from_secrets(); raw=ai_complete(ROUTER_PROMPT.format(history=conversation_context(),question=question),c.router_model,8)
