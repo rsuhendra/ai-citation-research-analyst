@@ -1,22 +1,54 @@
-import hashlib, uuid
-import streamlit as st
+from __future__ import annotations
+
+import hashlib
+
 from src.snowflake_io import execute, fetch_df
 
-def get_user_key()->str:
-    try:
-        if getattr(st.user,"is_logged_in",False):
-            email=getattr(st.user,"email",None)
-            if email:return "user:"+str(email).strip().lower()
-    except Exception: pass
-    if "anonymous_user_key" not in st.session_state: st.session_state["anonymous_user_key"]="session:"+str(uuid.uuid4())
-    return st.session_state["anonymous_user_key"]
 
-def get_usage_count(user_key:str)->int:
-    df=fetch_df("SELECT COUNT(*) AS N FROM PROMPT_USAGE WHERE USER_KEY=? AND USAGE_DATE=CURRENT_DATE() AND SUCCEEDED=TRUE",[user_key])
+def get_usage_count() -> int:
+    df = fetch_df(
+        """
+        SELECT COUNT(*) AS N
+        FROM PROMPT_USAGE
+        WHERE USAGE_DATE = CURRENT_DATE()
+          AND SUCCEEDED = TRUE
+        """
+    )
+
     return int(df.iloc[0]["N"])
 
-def enforce_limit(user_key:str,daily_limit:int)->None:
-    if get_usage_count(user_key)>=daily_limit: raise RuntimeError(f"Daily prompt limit reached ({daily_limit}/{daily_limit}).")
 
-def record_usage(user_key:str,route:str,question:str,succeeded:bool)->None:
-    execute("INSERT INTO PROMPT_USAGE (USER_KEY,ROUTE,QUESTION_HASH,SUCCEEDED) VALUES (?,?,?,?)",[user_key,route,hashlib.sha256(question.encode()).hexdigest(),succeeded])
+def enforce_limit(daily_limit: int) -> None:
+    used = get_usage_count()
+
+    if used >= daily_limit:
+        raise RuntimeError(
+            f"Daily application limit reached "
+            f"({used}/{daily_limit} prompts)."
+        )
+
+
+def record_usage(
+    route: str,
+    question: str,
+    succeeded: bool,
+) -> None:
+    question_hash = hashlib.sha256(
+        question.encode("utf-8")
+    ).hexdigest()
+
+    execute(
+        """
+        INSERT INTO PROMPT_USAGE (
+            ROUTE,
+            QUESTION_HASH,
+            SUCCEEDED
+        )
+        VALUES (?, ?, ?)
+        """,
+        [
+            route,
+            question_hash,
+            succeeded,
+        ],
+    )

@@ -7,7 +7,12 @@ from src.chat_memory import add_message, ensure_chat_state
 from src.config import AppConfig
 from src.router import answer_question
 from src.snowflake_io import execute
-from src.usage import enforce_limit, get_usage_count, get_user_key, record_usage
+from src.usage import (
+    enforce_limit,
+    get_usage_count,
+    record_usage,
+)
+
 
 st.set_page_config(
     page_title="AI Citation Research Analyst",
@@ -15,72 +20,136 @@ st.set_page_config(
     layout="wide",
 )
 
+
 config = AppConfig.from_secrets()
-user_key = get_user_key()
 ensure_chat_state()
 
 
 def fill_question(text: str) -> None:
+    """
+    Fill the research-question text box from an example button.
+
+    This is used as a button callback so the session-state value is
+    changed before Streamlit recreates the text-input widget.
+    """
     st.session_state["research_query"] = text
 
 
 if "research_query" not in st.session_state:
     st.session_state["research_query"] = ""
 
+
 EXAMPLES = [
-    ("Most cited papers", "What are the 10 most cited papers in the corpus?"),
-    ("Citation velocity", "Which papers have the highest citations per year?"),
+    (
+        "Most cited papers",
+        "What are the 10 most cited papers in the corpus?",
+    ),
+    (
+        "Citation velocity",
+        "Which papers have the highest citations per year?",
+    ),
     (
         "Citation relationships",
-        "Which papers are cited by the largest number of other papers in this corpus?",
+        (
+            "Which papers are cited by the largest number of "
+            "other papers in this corpus?"
+        ),
     ),
     (
         "Diffusion models",
-        "Which papers discuss diffusion models, and what are their main ideas?",
+        (
+            "Which papers discuss diffusion models, and what "
+            "are their main ideas?"
+        ),
     ),
     (
         "Efficient transformers",
-        "Which papers discuss efficient transformer training or inference?",
+        (
+            "Which papers discuss efficient transformer "
+            "training or inference?"
+        ),
     ),
     (
         "Multimodal learning",
-        "Summarize the papers about multimodal representation learning.",
+        (
+            "Summarize the papers about multimodal "
+            "representation learning."
+        ),
     ),
 ]
 
+
 st.title("🔬 AI Citation Research Analyst")
+
 st.caption(
-    "Ask structured citation questions or semantic questions about highly cited ML/AI paper abstracts."
+    "Ask structured citation questions or semantic questions "
+    "about highly cited ML/AI paper abstracts."
 )
 
+
+# -------------------------------------------------------------------
+# Sidebar
+# -------------------------------------------------------------------
+
 with st.sidebar:
-    used = get_usage_count(user_key)
+    st.header("Daily usage")
+
+    used = get_usage_count()
+
+    remaining = max(
+        0,
+        config.daily_prompt_limit - used,
+    )
+
     st.metric(
         "Prompts remaining today",
-        max(0, config.daily_prompt_limit - used),
+        remaining,
     )
-    st.progress(
-        min(1.0, used / config.daily_prompt_limit)
-        if config.daily_prompt_limit
-        else 1.0
+
+    if config.daily_prompt_limit > 0:
+        st.progress(
+            min(
+                1.0,
+                used / config.daily_prompt_limit,
+            )
+        )
+
+    st.caption(
+        "This is a shared limit across all users of the app."
     )
+
+    st.divider()
+
+    st.header("Available routes")
 
     st.markdown(
         """
 - **Direct:** general AI/ML explanations
-- **SQL:** counts, rankings, years, citations
-- **RAG:** methods and concepts in abstracts
+- **SQL:** counts, rankings, years, and citations
+- **RAG:** methods and concepts found in abstracts
 - **Reject:** unrelated requests
 """
     )
 
-    if st.button("Clear conversation", use_container_width=True):
+    st.divider()
+
+    if st.button(
+        "Clear conversation",
+        use_container_width=True,
+    ):
         st.session_state["messages"] = []
         st.session_state["research_query"] = ""
         st.rerun()
 
+
+# -------------------------------------------------------------------
+# Example-question buttons
+# -------------------------------------------------------------------
+
 st.subheader("💡 Try an example")
+
 columns = st.columns(2)
+
 for index, (label, example_question) in enumerate(EXAMPLES):
     columns[index % 2].button(
         label,
@@ -91,82 +160,212 @@ for index, (label, example_question) in enumerate(EXAMPLES):
         help=example_question,
     )
 
+
+# -------------------------------------------------------------------
+# Existing conversation
+# -------------------------------------------------------------------
+
 for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
         if message.get("sql"):
             with st.expander("Generated SQL"):
-                st.code(message["sql"], language="sql")
+                st.code(
+                    message["sql"],
+                    language="sql",
+                )
 
-        if isinstance(message.get("sql_results"), pd.DataFrame):
+        sql_results = message.get("sql_results")
+
+        if isinstance(sql_results, pd.DataFrame):
             with st.expander("SQL results"):
-                st.dataframe(message["sql_results"], use_container_width=True)
+                st.dataframe(
+                    sql_results,
+                    use_container_width=True,
+                )
 
-        if message.get("search_results"):
+        search_results = message.get("search_results")
+
+        if search_results:
             with st.expander("Retrieved papers"):
                 for index, paper in enumerate(
-                    message["search_results"], start=1
+                    search_results,
+                    start=1,
                 ):
-                    st.markdown(
-                        f"**{index}. {paper.get('TITLE', 'Untitled')}**  \n"
-                        f"Year: {paper.get('PUBLICATION_YEAR', '')} · "
-                        f"Citations: {paper.get('CITED_BY_COUNT', '')}  \n"
-                        f"{paper.get('ARXIV_URL', '')}"
+                    title = paper.get(
+                        "TITLE",
+                        "Untitled",
                     )
+
+                    year = paper.get(
+                        "PUBLICATION_YEAR",
+                        "",
+                    )
+
+                    citations = paper.get(
+                        "CITED_BY_COUNT",
+                        "",
+                    )
+
+                    url = paper.get(
+                        "ARXIV_URL",
+                        "",
+                    )
+
+                    st.markdown(
+                        f"**{index}. {title}**  \n"
+                        f"Year: {year} · "
+                        f"Citations: {citations}"
+                    )
+
+                    if url:
+                        st.markdown(
+                            f"[Open on arXiv]({url})"
+                        )
+
+
+# -------------------------------------------------------------------
+# Question input
+# -------------------------------------------------------------------
 
 question = st.text_input(
     "Ask about the research corpus",
     key="research_query",
-    placeholder="Example: Which papers discuss parameter-efficient fine-tuning?",
+    placeholder=(
+        "Example: Which papers discuss "
+        "parameter-efficient fine-tuning?"
+    ),
 )
 
-if st.button("Ask", type="primary", disabled=not question.strip()):
+ask_clicked = st.button(
+    "Ask",
+    type="primary",
+    disabled=not question.strip(),
+)
+
+
+# -------------------------------------------------------------------
+# Process question
+# -------------------------------------------------------------------
+
+if ask_clicked:
     question = question.strip()
 
     try:
-        enforce_limit(user_key, config.daily_prompt_limit)
+        enforce_limit(
+            config.daily_prompt_limit,
+        )
+
     except RuntimeError as exc:
         st.error(str(exc))
         st.stop()
 
-    add_message("user", question)
+    add_message(
+        "user",
+        question,
+    )
 
     with st.chat_message("user"):
         st.markdown(question)
 
     try:
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing the question..."):
-                result = answer_question(question)
+            with st.spinner(
+                "Analyzing the question..."
+            ):
+                result = answer_question(
+                    question
+                )
 
             st.markdown(result.answer)
 
             if result.sql:
-                with st.expander("Generated SQL"):
-                    st.code(result.sql, language="sql")
+                with st.expander(
+                    "Generated SQL"
+                ):
+                    st.code(
+                        result.sql,
+                        language="sql",
+                    )
 
             if result.sql_results is not None:
-                with st.expander("SQL results"):
-                    st.dataframe(result.sql_results, use_container_width=True)
+                with st.expander(
+                    "SQL results"
+                ):
+                    st.dataframe(
+                        result.sql_results,
+                        use_container_width=True,
+                    )
 
             if result.search_results:
-                with st.expander("Retrieved papers"):
+                with st.expander(
+                    "Retrieved papers"
+                ):
                     for index, paper in enumerate(
-                        result.search_results, start=1
+                        result.search_results,
+                        start=1,
                     ):
-                        st.markdown(
-                            f"**{index}. {paper.get('TITLE', 'Untitled')}**  \n"
-                            f"Year: {paper.get('PUBLICATION_YEAR', '')} · "
-                            f"Citations: {paper.get('CITED_BY_COUNT', '')}  \n"
-                            f"{paper.get('ARXIV_URL', '')}"
+                        title = paper.get(
+                            "TITLE",
+                            "Untitled",
                         )
 
-        record_usage(user_key, result.route, question, True)
-        execute(
-            "INSERT INTO QUERY_LOG (USER_KEY, QUESTION, ROUTE, GENERATED_SQL, ANSWER) VALUES (?, ?, ?, ?, ?)",
-            [user_key, question, result.route, result.sql, result.answer],
+                        year = paper.get(
+                            "PUBLICATION_YEAR",
+                            "",
+                        )
+
+                        citations = paper.get(
+                            "CITED_BY_COUNT",
+                            "",
+                        )
+
+                        url = paper.get(
+                            "ARXIV_URL",
+                            "",
+                        )
+
+                        st.markdown(
+                            f"**{index}. {title}**  \n"
+                            f"Year: {year} · "
+                            f"Citations: {citations}"
+                        )
+
+                        if url:
+                            st.markdown(
+                                f"[Open on arXiv]({url})"
+                            )
+
+        # Count one successful prompt toward the shared daily limit.
+        record_usage(
+            result.route,
+            question,
+            True,
         )
+
+        # USER_KEY is no longer needed for limiting usage.
+        # Store NULL in QUERY_LOG for compatibility with the existing table.
+        execute(
+            """
+            INSERT INTO QUERY_LOG (
+                USER_KEY,
+                QUESTION,
+                ROUTE,
+                GENERATED_SQL,
+                ANSWER
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                None,
+                question,
+                result.route,
+                result.sql,
+                result.answer,
+            ],
+        )
+
         add_message(
             "assistant",
             result.answer,
@@ -177,5 +376,12 @@ if st.button("Ask", type="primary", disabled=not question.strip()):
         )
 
     except Exception as exc:
-        record_usage(user_key, "error", question, False)
-        st.error(f"Request failed: {exc}")
+        record_usage(
+            "error",
+            question,
+            False,
+        )
+
+        st.error(
+            f"Request failed: {exc}"
+        )
