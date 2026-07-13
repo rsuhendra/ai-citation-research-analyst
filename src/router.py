@@ -5,7 +5,42 @@ from src.models import AssistantResult
 from src.prompts import *
 from src.snowflake_io import fetch_df
 from src.sql_guard import validate_and_limit_sql
+import re
+
+
 VALID={"direct","sql","rag","reject"}
+
+def extract_sql(raw_response: str) -> str:
+    """
+    Extract a SELECT or WITH query from an LLM response.
+    """
+    text = raw_response.strip()
+
+    # First try to extract a fenced SQL block.
+    fenced_match = re.search(
+        r"```(?:sql)?\s*(.*?)```",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if fenced_match:
+        return fenced_match.group(1).strip()
+
+    # Otherwise find the first SELECT or WITH keyword.
+    sql_start = re.search(
+        r"\b(?:SELECT|WITH)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    if not sql_start:
+        raise ValueError(
+            "The model did not return a SELECT or WITH query.\n\n"
+            f"Raw response:\n{raw_response}"
+        )
+
+    return text[sql_start.start():].strip()
+
 def choose_route(question:str)->str:
 	c=AppConfig.from_secrets(); raw=ai_complete(ROUTER_PROMPT.format(history=conversation_context(),question=question),c.router_model,8)
 	raw = raw.lower()
@@ -17,9 +52,36 @@ def choose_route(question:str)->str:
 	# route=raw.lower().strip().split()[0]
 	
 	# return route if route in VALID else "reject"
-def generate_sql(question:str)->str:
-	c=AppConfig.from_secrets(); raw=ai_complete(SQL_GENERATION_PROMPT.format(schema=SCHEMA_DESCRIPTION,history=conversation_context(),question=question),c.main_model,700)
-	return validate_and_limit_sql(raw,100)
+# def generate_sql(question:str)->str:
+# 	c=AppConfig.from_secrets(); raw=ai_complete(SQL_GENERATION_PROMPT.format(schema=SCHEMA_DESCRIPTION,history=conversation_context(),question=question),c.main_model,700)
+# 	return validate_and_limit_sql(raw,100)
+
+def generate_sql(question: str) -> str:
+    config = AppConfig.from_secrets()
+
+    raw_sql = ai_complete(
+        SQL_GENERATION_PROMPT.format(
+            schema=SCHEMA_DESCRIPTION,
+            history=conversation_context(),
+            question=question,
+        ),
+        model=config.main_model,
+        max_tokens=700,
+    )
+
+    print("RAW SQL RESPONSE:")
+    print(raw_sql)
+
+    extracted_sql = extract_sql(raw_sql)
+
+    print("EXTRACTED SQL:")
+    print(extracted_sql)
+
+    return validate_and_limit_sql(
+        extracted_sql,
+        max_rows=100,
+    )
+    
 def answer_question(question:str)->AssistantResult:
 	c=AppConfig.from_secrets(); route=choose_route(question); history=conversation_context()
 	if route=="reject": return AssistantResult(route,REJECT_MESSAGE)

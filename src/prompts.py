@@ -15,13 +15,44 @@ Context:
 {history}
 Question:
 {question}"""
-SQL_GENERATION_PROMPT = """Write one safe Snowflake SELECT query. Return SQL only.
+# SQL_GENERATION_PROMPT = """Write one safe Snowflake SELECT query. Return SQL only.
+# {schema}
+# Rules: use only PAPERS, FOCAL_PAPERS, CITATION_EDGES, CITATION_RELATIONSHIPS; one SELECT/WITH; no mutations; use ILIKE for fuzzy title/topic; limit <=100; no semicolon.
+# Context:
+# {history}
+# Question:
+# {question}"""
+
+SQL_GENERATION_PROMPT = """
+Write exactly one valid Snowflake SQL query that answers the user's question.
+
 {schema}
-Rules: use only PAPERS, FOCAL_PAPERS, CITATION_EDGES, CITATION_RELATIONSHIPS; one SELECT/WITH; no mutations; use ILIKE for fuzzy title/topic; limit <=100; no semicolon.
-Context:
+
+Rules:
+- Return only SQL.
+- Do not include markdown fences.
+- Do not include explanations.
+- Do not write phrases such as "Here is the query."
+- The first word must be SELECT or WITH.
+- Use only PAPERS, FOCAL_PAPERS, CITATION_EDGES,
+  or CITATION_RELATIONSHIPS.
+- Prefer FOCAL_PAPERS for rankings and paper metadata.
+- Prefer CITATION_RELATIONSHIPS for citation questions.
+- Generate exactly one SELECT or WITH query.
+- Never use INSERT, UPDATE, DELETE, DROP, ALTER, CREATE,
+  CALL, COPY, MERGE, GRANT, or REVOKE.
+- Use ILIKE for fuzzy title or topic matching.
+- Use NULLS LAST when sorting nullable fields.
+- Limit results to 100 rows or fewer.
+- Do not include a trailing semicolon.
+
+Conversation context:
 {history}
+
 Question:
-{question}"""
+{question}
+"""
+
 DIRECT_PROMPT = """Answer clearly within AI/ML research, citations, or this app. Do not claim database access.
 Context:
 {history}
