@@ -8,16 +8,15 @@ from src.config import AppConfig
 from src.router import answer_question
 from src.snowflake_io import execute
 from src.usage import (
-	enforce_limit,
-	get_usage_count,
-	record_usage,
+    enforce_limit,
+    get_usage_count,
+    record_usage,
 )
 
 
 st.set_page_config(
-	page_title="Top AI Paper Analyst",
-	page_icon="🔬",
-	layout="wide",
+    page_title="Natural Language Research Analytics",
+    layout="wide",
 )
 
 
@@ -25,81 +24,193 @@ config = AppConfig.from_secrets()
 ensure_chat_state()
 
 
-def fill_question(text: str) -> None:
-	"""
-	Fill the research-question text box from an example button.
-
-	This is used as a button callback so the session-state value is
-	changed before Streamlit recreates the text-input widget.
-	"""
-	st.session_state["research_query"] = text
-
-
-if "research_query" not in st.session_state:
-	st.session_state["research_query"] = ""
-
-
 EXAMPLES = [
-	(
-		"Most cited papers",
-		"What are the 10 most cited papers in the corpus?",
-	),
-	(
-		"Citation velocity",
-		"Which papers have the highest citations per year?",
-	),
-	(
-		"Citation relationships",
-		(
-			"Which papers are cited by the largest number of "
-			"other papers in this corpus?"
-		),
-	),
-	(
-		"Diffusion models",
-		(
-			"Which papers discuss diffusion models, and what "
-			"are their main ideas?"
-		),
-	),
-	(
-		"Efficient transformers",
-		(
-			"Which papers discuss efficient transformer "
-			"training or inference?"
-		),
-	),
-	(
-		"Multimodal learning",
-		(
-			"Summarize the papers about multimodal "
-			"representation learning."
-		),
-	),
+    (
+        "Most cited papers",
+        "What are the 10 most cited papers in the corpus?",
+    ),
+    (
+        "Citation velocity",
+        "Which papers have the highest citations per year?",
+    ),
+    (
+        "Citation relationships",
+        (
+            "Which papers are cited by the largest number of "
+            "other papers in this corpus?"
+        ),
+    ),
+    (
+        "Diffusion models",
+        (
+            "Which papers discuss diffusion models, and what "
+            "are their main ideas?"
+        ),
+    ),
+    (
+        "Efficient transformers",
+        (
+            "Which papers discuss efficient transformer "
+            "training or inference?"
+        ),
+    ),
+    (
+        "Multimodal learning",
+        (
+            "Summarize the papers about multimodal "
+            "representation learning."
+        ),
+    ),
 ]
 
 
-# st.title("🔬 AI Citation Research Analyst")
+ROUTE_DESCRIPTIONS = {
+    "direct": "Answered using Snowflake Cortex AI.",
+    "sql": "Generated and executed SQL against the citation database.",
+    "rag": "Retrieved relevant paper abstracts using Cortex Search.",
+    "reject": "The question is outside the scope of this application.",
+}
 
-# st.caption(
-# 	"Ask structured citation questions or semantic questions "
-# 	"about highly cited ML/AI paper abstracts."
-# )
 
-st.title("AI Analyst for top AI/ML papers")
+def queue_example(question: str) -> None:
+    """
+    Queue an example question for submission on the next Streamlit rerun.
+    """
+    st.session_state["pending_question"] = question
+
+
+def render_search_results(
+    search_results: list[dict] | None,
+) -> None:
+    if not search_results:
+        return
+
+    with st.expander("Retrieved papers"):
+        for index, paper in enumerate(
+            search_results,
+            start=1,
+        ):
+            title = paper.get(
+                "TITLE",
+                "Untitled",
+            )
+
+            year = paper.get(
+                "PUBLICATION_YEAR",
+                "",
+            )
+
+            citations = paper.get(
+                "CITED_BY_COUNT",
+                "",
+            )
+
+            url = paper.get(
+                "ARXIV_URL",
+                "",
+            )
+
+            st.markdown(
+                f"**{index}. {title}**  \n"
+                f"Year: {year} · "
+                f"Citations: {citations}"
+            )
+
+            if url:
+                st.markdown(
+                    f"[Open on arXiv]({url})"
+                )
+
+
+def render_message_metadata(
+    message: dict,
+) -> None:
+    route = message.get("route")
+
+    if route:
+        st.caption(
+            ROUTE_DESCRIPTIONS.get(
+                route,
+                route,
+            )
+        )
+
+    sql = message.get("sql")
+
+    if sql:
+        with st.expander("Generated SQL"):
+            st.code(
+                sql,
+                language="sql",
+            )
+
+    sql_results = message.get(
+        "sql_results"
+    )
+
+    if isinstance(
+        sql_results,
+        pd.DataFrame,
+    ):
+        with st.expander("Query results"):
+            st.dataframe(
+                sql_results,
+                use_container_width=True,
+            )
+
+    render_search_results(
+        message.get("search_results")
+    )
+
+
+if "pending_question" not in st.session_state:
+    st.session_state["pending_question"] = None
+
+
+# -------------------------------------------------------------------
+# Header
+# -------------------------------------------------------------------
+
+st.title(
+    "Natural Language Research Analytics with Snowflake"
+)
 
 st.markdown(
     """
-A natural-language research interface over a (small) curated corpus of highly cited
+A natural-language interface over a curated corpus of highly cited
 AI and machine learning papers published from 2021 through 2025.
 
-The application automatically routes each question to the appropriate pipeline,
-using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation,
-**Snowflake Cortex Search** for semantic retrieval over paper abstracts, and
-**Snowflake SQL** for structured analysis of citation relationships and
-publication metadata.
+The application automatically routes each question to the appropriate
+pipeline, using **Snowflake Cortex AI** for query routing, reasoning,
+and SQL generation, **Snowflake Cortex Search** for semantic retrieval
+over paper abstracts, and **Snowflake SQL** for structured analysis of
+citation relationships and publication metadata.
 """
 )
+
+
+capability_col1, capability_col2, capability_col3 = st.columns(3)
+
+with capability_col1:
+    st.subheader("Citation Analytics")
+    st.write(
+        "Explore citation rankings, publication years, "
+        "citation velocity, and relationships between papers."
+    )
+
+with capability_col2:
+    st.subheader("Semantic Search")
+    st.write(
+        "Retrieve papers by meaning rather than exact keywords "
+        "using titles and abstracts."
+    )
+
+with capability_col3:
+    st.subheader("Research Synthesis")
+    st.write(
+        "Summarize methods, compare approaches, and answer "
+        "questions using retrieved abstracts as evidence."
+    )
 
 
 # -------------------------------------------------------------------
@@ -107,80 +218,63 @@ publication metadata.
 # -------------------------------------------------------------------
 
 with st.sidebar:
-	st.header("Daily usage")
+    st.header("Usage")
 
-	used = get_usage_count()
+    used = get_usage_count()
 
-	remaining = max(
-		0,
-		config.daily_prompt_limit - used,
-	)
+    remaining = max(
+        0,
+        config.daily_prompt_limit - used,
+    )
 
-	st.metric(
-		"Prompts remaining today",
-		remaining,
-	)
+    st.metric(
+        "Prompts remaining today",
+        remaining,
+    )
 
-	if config.daily_prompt_limit > 0:
-		st.progress(
-			min(
-				1.0,
-				used / config.daily_prompt_limit,
-			)
-		)
+    if config.daily_prompt_limit > 0:
+        st.progress(
+            min(
+                1.0,
+                used / config.daily_prompt_limit,
+            )
+        )
 
-	st.caption(
-		"This is a shared limit across all users of the app."
-	)
+    st.caption(
+        "Shared application-wide daily limit."
+    )
 
-	# st.divider()
+    st.divider()
 
-	# st.header("About this corpus")
-
-	# st.markdown(
-	# 	"""
-	# This application contains a curated corpus of the **top-cited AI and machine learning papers published from 2021 through 2025**, together with citation relationships between papers in the dataset.
-
-	# You can use natural-language questions to:
-
-	# - Explore citation rankings and publication trends.
-	# - Find influential papers on a research topic.
-	# - Search paper abstracts semantically.
-	# - Summarize and compare methods across papers.
-	# - Examine citation relationships within the corpus.
-
-	# The application automatically routes natural-language queries to the appropriate pipeline, using **Snowflake Cortex AI** for query routing, reasoning, and SQL generation, **Snowflake Cortex Search** for semantic retrieval over paper abstracts, and **Snowflake SQL** for structured analysis of citation relationships and publication metadata.
-	# """
-	# )
-
-	st.divider()
-
-	if st.button(
-		"Clear conversation",
-		use_container_width=True,
-	):
-		st.session_state["messages"] = []
-		st.session_state["research_query"] = ""
-		st.rerun()
+    if st.button(
+        "Clear conversation",
+        use_container_width=True,
+    ):
+        st.session_state["messages"] = []
+        st.session_state["pending_question"] = None
+        st.rerun()
 
 
 # -------------------------------------------------------------------
-# Example-question buttons
+# Example questions
 # -------------------------------------------------------------------
 
-st.subheader("💡 Try an example")
+st.subheader("Example questions")
 
-columns = st.columns(2)
+example_columns = st.columns(2)
 
-for index, (label, example_question) in enumerate(EXAMPLES):
-	columns[index % 2].button(
-		label,
-		key=f"example_{index}",
-		use_container_width=True,
-		on_click=fill_question,
-		args=(example_question,),
-		help=example_question,
-	)
+for index, (label, question) in enumerate(EXAMPLES):
+    example_columns[index % 2].button(
+        label,
+        key=f"example_{index}",
+        use_container_width=True,
+        on_click=queue_example,
+        args=(question,),
+        help=question,
+    )
+
+
+st.divider()
 
 
 # -------------------------------------------------------------------
@@ -188,230 +282,155 @@ for index, (label, example_question) in enumerate(EXAMPLES):
 # -------------------------------------------------------------------
 
 for message in st.session_state["messages"]:
-	with st.chat_message(message["role"]):
-		st.markdown(message["content"])
+    with st.chat_message(
+        message["role"]
+    ):
+        st.markdown(
+            message["content"]
+        )
 
-		if message.get("sql"):
-			with st.expander("Generated SQL"):
-				st.code(
-					message["sql"],
-					language="sql",
-				)
-
-		sql_results = message.get("sql_results")
-
-		if isinstance(sql_results, pd.DataFrame):
-			with st.expander("SQL results"):
-				st.dataframe(
-					sql_results,
-					use_container_width=True,
-				)
-
-		search_results = message.get("search_results")
-
-		if search_results:
-			with st.expander("Retrieved papers"):
-				for index, paper in enumerate(
-					search_results,
-					start=1,
-				):
-					title = paper.get(
-						"TITLE",
-						"Untitled",
-					)
-
-					year = paper.get(
-						"PUBLICATION_YEAR",
-						"",
-					)
-
-					citations = paper.get(
-						"CITED_BY_COUNT",
-						"",
-					)
-
-					url = paper.get(
-						"ARXIV_URL",
-						"",
-					)
-
-					st.markdown(
-						f"**{index}. {title}**  \n"
-						f"Year: {year} · "
-						f"Citations: {citations}"
-					)
-
-					if url:
-						st.markdown(
-							f"[Open on arXiv]({url})"
-						)
+        if message["role"] == "assistant":
+            render_message_metadata(
+                message
+            )
 
 
 # -------------------------------------------------------------------
-# Question input
+# Chat input
 # -------------------------------------------------------------------
 
-question = st.text_input(
-	"Ask about the research corpus",
-	key="research_query",
-	placeholder=(
-		"Example: Which papers discuss "
-		"parameter-efficient fine-tuning?"
-	),
+typed_question = st.chat_input(
+    "Ask about papers, citations, methods, or research topics"
 )
 
-ask_clicked = st.button(
-	"Ask",
-	type="primary",
-	disabled=not question.strip(),
-)
+question = typed_question
+
+if (
+    question is None
+    and st.session_state["pending_question"]
+):
+    question = st.session_state[
+        "pending_question"
+    ]
+
+    st.session_state[
+        "pending_question"
+    ] = None
 
 
 # -------------------------------------------------------------------
-# Process question
+# Process a new question
 # -------------------------------------------------------------------
 
-if ask_clicked:
-	question = question.strip()
+if question:
+    question = question.strip()
 
-	try:
-		enforce_limit(
-			config.daily_prompt_limit,
-		)
+    try:
+        enforce_limit(
+            config.daily_prompt_limit,
+        )
 
-	except RuntimeError as exc:
-		st.error(str(exc))
-		st.stop()
+    except RuntimeError as exc:
+        st.error(str(exc))
+        st.stop()
 
-	add_message(
-		"user",
-		question,
-	)
+    add_message(
+        "user",
+        question,
+    )
 
-	with st.chat_message("user"):
-		st.markdown(question)
+    with st.chat_message("user"):
+        st.markdown(question)
 
-	try:
-		with st.chat_message("assistant"):
-			with st.spinner(
-				"Analyzing the question..."
-			):
-				result = answer_question(
-					question
-				)
-				route_description = {
-					"direct": "Answered using the LLM only.",
-					"sql": "Generated SQL and queried the Snowflake database.",
-					"rag": "Retrieved relevant paper abstracts before answering.",
-					"reject": "Question is outside the application's scope.",
-				}
+    try:
+        with st.chat_message("assistant"):
+            with st.spinner(
+                "Analyzing the research corpus..."
+            ):
+                result = answer_question(
+                    question
+                )
 
-				st.info(route_description[result.route])
+            st.caption(
+                ROUTE_DESCRIPTIONS.get(
+                    result.route,
+                    result.route,
+                )
+            )
 
-			st.markdown(result.answer)
+            st.markdown(
+                result.answer
+            )
 
-			if result.sql:
-				with st.expander(
-					"Generated SQL"
-				):
-					st.code(
-						result.sql,
-						language="sql",
-					)
+            if result.sql:
+                with st.expander(
+                    "Generated SQL"
+                ):
+                    st.code(
+                        result.sql,
+                        language="sql",
+                    )
 
-			if result.sql_results is not None:
-				with st.expander(
-					"SQL results"
-				):
-					st.dataframe(
-						result.sql_results,
-						use_container_width=True,
-					)
+            if (
+                result.sql_results
+                is not None
+            ):
+                with st.expander(
+                    "Query results"
+                ):
+                    st.dataframe(
+                        result.sql_results,
+                        use_container_width=True,
+                    )
 
-			if result.search_results:
-				with st.expander(
-					"Retrieved papers"
-				):
-					for index, paper in enumerate(
-						result.search_results,
-						start=1,
-					):
-						title = paper.get(
-							"TITLE",
-							"Untitled",
-						)
+            render_search_results(
+                result.search_results
+            )
 
-						year = paper.get(
-							"PUBLICATION_YEAR",
-							"",
-						)
+        record_usage(
+            result.route,
+            question,
+            True,
+        )
 
-						citations = paper.get(
-							"CITED_BY_COUNT",
-							"",
-						)
+        execute(
+            """
+            INSERT INTO QUERY_LOG (
+                USER_KEY,
+                QUESTION,
+                ROUTE,
+                GENERATED_SQL,
+                ANSWER
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                None,
+                question,
+                result.route,
+                result.sql,
+                result.answer,
+            ],
+        )
 
-						url = paper.get(
-							"ARXIV_URL",
-							"",
-						)
+        add_message(
+            "assistant",
+            result.answer,
+            route=result.route,
+            sql=result.sql,
+            sql_results=result.sql_results,
+            search_results=result.search_results,
+        )
 
-						st.markdown(
-							f"**{index}. {title}**  \n"
-							f"Year: {year} · "
-							f"Citations: {citations}"
-						)
+        st.rerun()
 
-						if url:
-							st.markdown(
-								f"[Open on arXiv]({url})"
-							)
+    except Exception as exc:
+        record_usage(
+            "error",
+            question,
+            False,
+        )
 
-		# Count one successful prompt toward the shared daily limit.
-		record_usage(
-			result.route,
-			question,
-			True,
-		)
-
-		# USER_KEY is no longer needed for limiting usage.
-		# Store NULL in QUERY_LOG for compatibility with the existing table.
-		execute(
-			"""
-			INSERT INTO QUERY_LOG (
-				USER_KEY,
-				QUESTION,
-				ROUTE,
-				GENERATED_SQL,
-				ANSWER
-			)
-			VALUES (?, ?, ?, ?, ?)
-			""",
-			[
-				None,
-				question,
-				result.route,
-				result.sql,
-				result.answer,
-			],
-		)
-
-		add_message(
-			"assistant",
-			result.answer,
-			route=result.route,
-			sql=result.sql,
-			sql_results=result.sql_results,
-			search_results=result.search_results,
-		)
-
-	except Exception as exc:
-		record_usage(
-			"error",
-			question,
-			False,
-		)
-
-		st.error(
-			f"Request failed: {exc}"
-		)
+        st.error(
+            f"Request failed: {exc}"
+        )
