@@ -20,6 +20,21 @@ def cursor() -> Iterator[Any]:
     try: yield cur
     finally: cur.close()
 
+def clear_snowflake_connections() -> None:
+    try:
+        get_connection().close()
+    except Exception:
+        pass
+
+    try:
+        get_snowpark_session().close()
+    except Exception:
+        pass
+
+    get_root.clear()
+    get_snowpark_session.clear()
+    get_connection.clear()
+
 def fetch_df(sql: str, params: list[Any] | None = None) -> pd.DataFrame:
     with cursor() as cur:
         cur.execute(sql, params or [])
