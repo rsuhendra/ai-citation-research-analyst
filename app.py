@@ -6,7 +6,10 @@ import streamlit as st
 from src.chat_memory import add_message, ensure_chat_state
 from src.config import AppConfig
 from src.router import answer_question
-from src.snowflake_io import execute
+from src.snowflake_io import (
+    clear_snowflake_connections,
+    execute,
+)
 from src.usage import (
     enforce_limit,
     get_usage_count,
@@ -82,6 +85,9 @@ def queue_example(question: str) -> None:
 def render_search_results(
     search_results: list[dict] | None,
 ) -> None:
+    """
+    Display the paper records returned by Cortex Search.
+    """
     if not search_results:
         return
 
@@ -125,6 +131,9 @@ def render_search_results(
 def render_message_metadata(
     message: dict,
 ) -> None:
+    """
+    Display route information and supporting query or retrieval results.
+    """
     route = message.get("route")
 
     if route:
@@ -220,7 +229,14 @@ with capability_col3:
 with st.sidebar:
     st.header("Usage")
 
-    used = get_usage_count()
+    try:
+        used = get_usage_count()
+    except Exception as exc:
+        st.warning(
+            "Unable to read the current usage count."
+        )
+        st.caption(str(exc))
+        used = 0
 
     remaining = max(
         0,
@@ -245,6 +261,16 @@ with st.sidebar:
     )
 
     st.divider()
+
+    if st.button(
+        "Reconnect to Snowflake",
+        use_container_width=True,
+    ):
+        clear_snowflake_connections()
+        st.success(
+            "Snowflake connection refreshed."
+        )
+        st.rerun()
 
     if st.button(
         "Clear conversation",
@@ -434,3 +460,23 @@ if question:
         st.error(
             f"Request failed: {exc}"
         )
+
+        if st.button(
+            "Reconnect and retry",
+            use_container_width=True,
+        ):
+            clear_snowflake_connections()
+
+            # Remove the user message that was just added so it
+            # is not duplicated when the question is retried.
+            if (
+                st.session_state["messages"]
+                and st.session_state["messages"][-1].get("role")
+                == "user"
+                and st.session_state["messages"][-1].get("content")
+                == question
+            ):
+                st.session_state["messages"].pop()
+
+            st.session_state["pending_question"] = question
+            st.rerun()
