@@ -37,20 +37,6 @@ EXAMPLES = [
         "Which papers have the highest citations per year?",
     ),
     (
-        "Citation relationships",
-        (
-            "Which papers are cited by the largest number of "
-            "other papers in this corpus?"
-        ),
-    ),
-    (
-        "Diffusion models",
-        (
-            "Which papers discuss diffusion models, and what "
-            "are their main ideas?"
-        ),
-    ),
-    (
         "Efficient transformers",
         (
             "Which papers discuss efficient transformer "
